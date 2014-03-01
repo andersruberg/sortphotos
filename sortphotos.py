@@ -29,8 +29,8 @@ def parse_date_exif(date):
     date = str(date).split()[0]
     entries = date.split(':')
     year = entries[0]
-    month = entries[1]
-    month += '-' + months[month]
+    month_number = entries[1]
+    month = months[month_number]
     day = entries[2]
 
     return year, month, day
@@ -47,8 +47,8 @@ def parse_date_tstamp(fname):
 
     date = time.gmtime(creation_time)
     year = str(date.tm_year)
-    month = '{0:02d}'.format(date.tm_mon)
-    month += '-' + months[month]
+    month_number = '{0:02d}'.format(date.tm_mon)
+    month =  months[month_number]
     day = '{0:02d}'.format(date.tm_mday)
 
     return year, month, day
@@ -89,9 +89,9 @@ def get_creation_time(path):
 
 # ---------- constants --------------
 
-months = {'01': 'JAN', '02': 'FEB', '03': 'MAR', '04': 'APR', '05': 'MAY',
-          '06': 'JUN', '07': 'JUL', '08': 'AUG', '09': 'SEP', '10': 'OCT',
-          '11': 'NOV', '12': 'DEC'}
+months = {'01': 'Januari', '02': 'Februari', '03': 'Mars', '04': 'April', '05': 'Maj',
+          '06': 'Juni', '07': 'Juli', '08': 'Augusti', '09': 'September', '10': 'Oktober',
+          '11': 'November', '12': 'December'}
 
 SortType = enum('Year', 'YearMonth', 'YearMonthDay')
 
@@ -103,7 +103,7 @@ SortType = enum('Year', 'YearMonth', 'YearMonthDay')
 
 # --------- main script -----------------
 
-def sortPhotos(src_dir, dest_dir, extensions, sort_type, move_files, removeDuplicates):
+def sortPhotos(src_dir, dest_dir, extensions, sort_type, move_files, removeDuplicates, flat_dir):
 
 
     # some error checking
@@ -152,14 +152,14 @@ def sortPhotos(src_dir, dest_dir, extensions, sort_type, move_files, removeDupli
 
         idx += 1
 
-        # open file
-        f = open(src_file, 'rb')
 
         # get extension for types that may have EXIF data
         root, ext = os.path.splitext(src_file)
 
-        if ext.lower() in ['.jpg', '.jpeg', '.tiff']:
+        if ext.lower() in ['.jpg', '.jpeg', '.tiff', '.cr2']:
 
+            # open file
+            f = open(src_file, 'rb')
             tags = exifread.process_file(f, details=False)
 
             # look for date in EXIF data
@@ -184,18 +184,28 @@ def sortPhotos(src_dir, dest_dir, extensions, sort_type, move_files, removeDupli
 
         # create year directory if necessary
         dest_file = os.path.join(dest_dir, year)
-        if not os.path.exists(dest_file):
+        if not os.path.exists(dest_file) and not flat_dir:
             os.makedirs(dest_file)
 
         # create month directory if necessary
         if sort_type in [SortType.YearMonth, SortType.YearMonthDay]:
-            dest_file = os.path.join(dest_file, month)
-            if not os.path.exists(dest_file):
-                os.makedirs(dest_file)
+            if not flat_dir:
+                dest_file = os.path.join(dest_file, month)
+                if not os.path.exists(dest_file):
+                    os.makedirs(dest_file)
+            else:
+                dest_file = dest_file + "_" + month
 
         # create day directory if necessary
         if sort_type == SortType.YearMonthDay:
-            dest_file = os.path.join(dest_file, day)
+            if not flat_dir:
+                dest_file = os.path.join(dest_file, day)
+                if not os.path.exists(dest_file):
+                    os.makedirs(dest_file)
+            else:
+                dest_file = dest_file + "_" + day
+
+        if flat_dir:
             if not os.path.exists(dest_file):
                 os.makedirs(dest_file)
 
@@ -224,7 +234,9 @@ def sortPhotos(src_dir, dest_dir, extensions, sort_type, move_files, removeDupli
 
         # finally move or copy the file
         if move_files:
-            os.rename(src_file, dest_file)
+            #print "Debug: src file: " + src_file + ", dest file: " + dest_file
+            #os.rename(src_file, dest_file)
+            shutil.move(src_file,dest_file)
         else:
             if fileIsIdentical:
                 continue  # if file is same, we just ignore it (for copy option)
@@ -248,10 +260,11 @@ if __name__ == '__main__':
     parser.add_argument('-m', '--move', action='store_true', help='move files instead of copy')
     parser.add_argument('-s', '--sort', type=str, choices=['y', 'm', 'd'], default='m',
                         help='choose destination folder structure\n\ty: sort by year\n\tm: sort by year then month\n\td: sort by year then month then day')
+    parser.add_argument('-f', '--flat', dest='flat', action='store_true', help='use flat directory structure')
     parser.add_argument('--keep-duplicates', action='store_true',
                         help='If file is a duplicate keep it anyway (after renmaing).')
     parser.add_argument('--extensions', type=str, nargs='+',
-                        default=['jpg', 'jpeg', 'tiff', 'avi', 'mov', 'mp4'],
+                        default=['jpg', 'jpeg', 'tiff', 'png', 'avi', 'mov', 'mp4', 'cr2', 'mpg'],
                         help='file types to sort')
 
 
@@ -266,7 +279,7 @@ if __name__ == '__main__':
         sort_type = SortType.YearMonthDay
 
     sortPhotos(args.src_dir, args.dest_dir, args.extensions, sort_type,
-              args.move, not args.keep_duplicates)
+              args.move, not args.keep_duplicates, args.flat)
 
 
 
